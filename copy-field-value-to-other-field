@@ -1,0 +1,46 @@
+// Script to copy values from one field to another, or append it
+// Can be used as Scriptrunner Job where you enter a JQL to define the scope. 
+
+import com.atlassian.jira.issue.fields.CustomField
+import com.atlassian.jira.component.ComponentAccessor
+import com.atlassian.jira.issue.ModifiedValue
+import com.atlassian.jira.issue.util.DefaultIssueChangeHolder
+import com.atlassian.jira.issue.index.IssueIndexingService
+import com.atlassian.jira.util.ImportUtils
+
+def issueIndexingService = ComponentAccessor.getComponent(IssueIndexingService)
+
+//////////////////////////////////////////////////////////////////////////
+// Source field. Change the customfieldID to your source customfield
+//////////////////////////////////////////////////////////////////////////
+
+CustomField cf = customFieldManager.getCustomFieldObject('customfield_12345') // Set the cf here
+def sourceValue = issue.getCustomFieldValue(cf).toString()
+// if your source field is a system field, then use the below line instead and change the get...() according to your need
+// def sourceValue = issue.getSummary()
+
+log.warn("sourceValue: ${sourceValue}")
+
+//////////////////////////////////////////////////////////////////////////
+// Target field. Change according to your target 
+//////////////////////////////////////////////////////////////////////////
+
+def currentDescription = issue.getDescription()
+if(currentDescription){
+  def newDescription = currentDescription + " " + sourceValue
+  // To always overwrite any existing value in the target, use the below line instead:
+  // def newDescription = sourceValue
+} else {
+  def newDescription = sourceValue
+}
+
+issueInputParameters.setDescription(newDescription)
+issueInputParameters.setSkipScreenCheck(true)
+def changeHolder = new DefaultIssueChangeHolder()
+
+cf.updateValue(null, issue, new ModifiedValue(issue.getCustomFieldValue(cf), sourceValue),changeHolder)
+
+boolean wasIndexing = ImportUtils.isIndexIssues();
+ImportUtils.setIndexIssues(true);
+issueIndexingService.reIndex(issue);
+ImportUtils.setIndexIssues(wasIndexing);
