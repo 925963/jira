@@ -1,0 +1,57 @@
+// replace inactive assignee or reporter with some user
+// this script fails if required fields are missing
+
+import com.atlassian.jira.component.ComponentAccessor
+import com.atlassian.jira.issue.fields.CustomField
+import com.atlassian.jira.issue.IssueInputParametersImpl
+import com.atlassian.jira.user.util.UserManager
+import com.atlassian.jira.issue.MutableIssue
+import com.atlassian.jira.issue.comments.CommentManager
+
+def issueService = ComponentAccessor.issueService
+def issueManager = ComponentAccessor.getIssueManager()
+def userManager = ComponentAccessor.getUserManager()
+CommentManager commentManager = ComponentAccessor.getCommentManager()
+def assigneeIsInactive = false
+def reporterIsInactive = false
+
+// Set paramters
+def changeUser = userManager.getUserByName('john.doe')
+def inactiveUser = userManager.getUserByName('Inactive_User')
+MutableIssue thisIssue = issueManager.getIssueByCurrentKey(issue.key)
+def issueInputParameters = new IssueInputParametersImpl()
+def comment = "The assignee or reporter was an inactive. To ensure this issue can still be used, it has been switched to 'Inactive User"
+
+def currentAssignee = thisIssue.getAssignee()
+def currentReporter = thisIssue.getReporter()
+
+if(!issue.description && issue.type == "Epic") {
+    issueInputParameters.setDescription("Please provide a description")
+}
+
+if(currentAssignee) {
+    log.warn("Current assignee: $currentAssignee.displayName")
+    if(!currentAssignee.isActive()) {
+        issueInputParameters.setAssigneeId(inactiveUser.name)
+        log.warn("Set issueparameter for Assignee")
+    }
+}
+
+if(currentReporter) {
+    log.warn("Current reporter: $currentReporter.displayName")
+    if(!currentReporter.isActive()) {
+        issueInputParameters.setReporterId(inactiveUser.name)
+        log.warn("Set issueparameter for Reporter")
+    }
+}
+
+def validationResult = issueService.validateUpdate(yoda, thisIssue.id, issueInputParameters)
+
+if (validationResult.isValid()) {
+    log.warn("Validation is okay")
+    issueService.update(changeUser, validationResult)
+    commentManager.create(issue, changeUser, comment, false)
+    log.warn("Updated the issue and set a comment")
+} else {
+    log.warn validationResult.errorCollection.errors
+}
